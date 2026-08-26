@@ -5,157 +5,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plutana Key Manager</title>
   <style>
-    * {
-      box-sizing: border-box;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
+    * { box-sizing: border-box; font-family: system-ui, sans-serif; }
     body {
-      background: #0b0e14;
-      color: #e0e6ed;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
+      background: #0b0e14; color: #e0e6ed;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; margin: 0; padding: 20px;
     }
     .card {
-      background: #1a1f2a;
-      border-radius: 20px;
-      padding: 30px;
-      max-width: 550px;
-      width: 100%;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      background: #1a1f2a; border-radius: 20px; padding: 30px;
+      max-width: 550px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
       border: 1px solid #2d3545;
     }
-    h1 {
-      font-weight: 500;
-      font-size: 1.8rem;
-      margin-top: 0;
-      margin-bottom: 10px;
-      letter-spacing: -0.5px;
-      color: #f0f4ff;
-    }
-    .sub {
-      color: #8892a5;
-      margin-bottom: 25px;
-      font-size: 0.95rem;
-    }
-    .btn-group {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 25px;
-    }
+    h1 { font-weight: 500; font-size: 1.8rem; margin-top: 0; margin-bottom: 10px; color: #f0f4ff; }
+    .sub { color: #8892a5; margin-bottom: 25px; font-size: 0.95rem; }
+    .btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 25px; }
     button {
-      background: #2d3748;
-      border: none;
-      color: white;
-      padding: 12px 24px;
-      border-radius: 40px;
-      font-size: 1rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: 0.2s;
-      flex: 1 1 auto;
-      min-width: 120px;
-      border: 1px solid #3f4a5e;
+      background: #2d3748; border: none; color: white; padding: 12px 24px;
+      border-radius: 40px; font-size: 1rem; font-weight: 500; cursor: pointer;
+      transition: 0.2s; flex: 1 1 auto; min-width: 120px; border: 1px solid #3f4a5e;
     }
-    button:hover {
-      background: #3f4a60;
-      border-color: #5a6a82;
-    }
-    button.primary {
-      background: #4f7cf7;
-      border-color: #4f7cf7;
-    }
-    button.primary:hover {
-      background: #6a8ffb;
-      border-color: #6a8ffb;
-    }
+    button:hover { background: #3f4a60; border-color: #5a6a82; }
+    button.primary { background: #4f7cf7; border-color: #4f7cf7; }
+    button.primary:hover { background: #6a8ffb; border-color: #6a8ffb; }
     input {
-      background: #10151e;
-      border: 1px solid #2d3545;
-      color: #e0e6ed;
-      padding: 12px 16px;
-      border-radius: 40px;
-      font-size: 1rem;
-      width: 100%;
-      outline: none;
-      transition: 0.2s;
-      margin-bottom: 12px;
+      background: #10151e; border: 1px solid #2d3545; color: #e0e6ed;
+      padding: 12px 16px; border-radius: 40px; font-size: 1rem;
+      width: 100%; outline: none; transition: 0.2s; margin-bottom: 12px;
     }
-    input:focus {
-      border-color: #4f7cf7;
-    }
+    input:focus { border-color: #4f7cf7; }
     .key-display {
-      background: #0f141e;
-      border-radius: 14px;
-      padding: 20px;
-      margin: 20px 0;
-      border-left: 4px solid #4f7cf7;
+      background: #0f141e; border-radius: 14px; padding: 20px;
+      margin: 20px 0; border-left: 4px solid #4f7cf7;
     }
     .key-display .key {
-      font-family: 'Courier New', monospace;
-      font-size: 1.3rem;
-      font-weight: 600;
-      color: #b7c9ff;
-      word-break: break-all;
+      font-family: 'Courier New', monospace; font-size: 1.3rem;
+      font-weight: 600; color: #b7c9ff; word-break: break-all;
     }
     .info-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 20px;
-      margin-top: 14px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-top: 14px;
       font-size: 0.9rem;
     }
-    .info-grid .label {
-      color: #8892a5;
-    }
-    .info-grid .value {
-      color: #d0d9e8;
-      font-weight: 500;
-      text-align: right;
-    }
+    .info-grid .label { color: #8892a5; }
+    .info-grid .value { color: #d0d9e8; font-weight: 500; text-align: right; }
     .countdown {
-      font-size: 1.6rem;
-      font-weight: 600;
-      color: #8cf0a0;
-      text-align: center;
-      padding: 12px 0 0;
-      letter-spacing: 1px;
+      font-size: 1.6rem; font-weight: 600; color: #8cf0a0; text-align: center;
+      padding: 12px 0 0; letter-spacing: 1px;
     }
-    .countdown.warning {
-      color: #f5b86c;
-    }
-    .countdown.danger {
-      color: #f56c6c;
-    }
+    .countdown.warning { color: #f5b86c; }
+    .countdown.danger { color: #f56c6c; }
     .error {
-      color: #f56c6c;
-      background: #2a1a1a;
-      padding: 10px 16px;
-      border-radius: 40px;
-      margin: 12px 0;
-      font-size: 0.9rem;
-      border: 1px solid #5a2a2a;
-      display: none;
+      color: #f56c6c; background: #2a1a1a; padding: 10px 16px; border-radius: 40px;
+      margin: 12px 0; font-size: 0.9rem; border: 1px solid #5a2a2a; display: none;
     }
     .footer {
-      margin-top: 20px;
-      font-size: 0.8rem;
-      color: #5a6a82;
-      text-align: center;
-      border-top: 1px solid #2d3545;
-      padding-top: 18px;
+      margin-top: 20px; font-size: 0.8rem; color: #5a6a82; text-align: center;
+      border-top: 1px solid #2d3545; padding-top: 18px;
     }
-    .footer a {
-      color: #6a8ffb;
-      text-decoration: none;
-    }
-    .footer a:hover {
-      text-decoration: underline;
-    }
+    .footer a { color: #6a8ffb; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -164,11 +71,12 @@
     <div class="sub">Generate and track keys with 24h expiry</div>
 
     <div class="btn-group">
-      <button class="primary" id="generateBtn">New Key</button>
+      <button class="primary" id="generateBtn">Random Key</button>
+      <button id="generateCustomBtn">Custom Key</button>
       <button id="checkBtn">Check Key</button>
     </div>
 
-    <input type="text" id="keyInput" placeholder="Enter a key (e.g. Plutana-123e4567-e89b-12d3-a456-426614174000)" value="" />
+    <input type="text" id="keyInput" placeholder="Enter a key or custom id (e.g. myapp123)" value="" />
 
     <div id="errorBox" class="error"></div>
 
@@ -186,16 +94,16 @@
     </div>
 
     <div class="footer">
-      Powered by <a href="#" target="_blank">Plutana Worker</a>
+      Powered by <a href="#">Plutana Worker</a>
     </div>
   </div>
 
   <script>
-    // Point this to your deployed Cloudflare Worker
     const WORKER_URL = 'https://spring-forest-1d9c.teegandunlap123.workers.dev';
 
     const keyInput = document.getElementById('keyInput');
     const generateBtn = document.getElementById('generateBtn');
+    const generateCustomBtn = document.getElementById('generateCustomBtn');
     const checkBtn = document.getElementById('checkBtn');
     const keyDisplay = document.getElementById('keyDisplay');
     const keyValue = document.getElementById('keyValue');
@@ -206,10 +114,18 @@
     const errorBox = document.getElementById('errorBox');
 
     let countdownInterval = null;
-    let currentExpiry = null;
 
-    async function callWorker(key = null) {
-      const url = key ? `${WORKER_URL}?key=${encodeURIComponent(key)}` : WORKER_URL;
+    async function callWorker(mode, value = null) {
+      let url = WORKER_URL;
+      if (mode === 'generate') {
+        // no parameters -> random UUID
+      } else if (mode === 'generateCustom') {
+        if (!value) throw new Error('Please enter a custom id');
+        url += `?id=${encodeURIComponent(value)}`;
+      } else if (mode === 'check') {
+        if (!value) throw new Error('Please enter a key to check');
+        url += `?key=${encodeURIComponent(value)}`;
+      }
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) {
@@ -224,37 +140,28 @@
       usageValue.textContent = data.usage;
       createdValue.textContent = new Date(data.created).toLocaleString();
       expiresValue.textContent = new Date(data.expiresAt).toLocaleString();
-      currentExpiry = new Date(data.expiresAt).getTime();
-      startCountdown(currentExpiry);
+      startCountdown(new Date(data.expiresAt).getTime());
     }
 
     function startCountdown(expiryMs) {
       if (countdownInterval) clearInterval(countdownInterval);
-
       function update() {
         const now = Date.now();
         let diff = Math.max(0, expiryMs - now);
         const hours = Math.floor(diff / 3600000);
         const minutes = Math.floor((diff % 3600000) / 60000);
         const seconds = Math.floor((diff % 60000) / 1000);
-
-        const pad = (n) => String(n).padStart(2, '0');
+        const pad = n => String(n).padStart(2, '0');
         countdownDisplay.textContent = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-
         countdownDisplay.className = 'countdown';
-        if (diff < 3600000) {
-          countdownDisplay.classList.add('danger');
-        } else if (diff < 7200000) {
-          countdownDisplay.classList.add('warning');
-        }
-
+        if (diff < 3600000) countdownDisplay.classList.add('danger');
+        else if (diff < 7200000) countdownDisplay.classList.add('warning');
         if (diff === 0) {
           clearInterval(countdownInterval);
           keyDisplay.style.display = 'none';
           showError('This key has expired.');
         }
       }
-
       update();
       countdownInterval = setInterval(update, 1000);
     }
@@ -264,31 +171,34 @@
       errorBox.style.display = 'block';
       setTimeout(() => { errorBox.style.display = 'none'; }, 5000);
     }
+    function clearError() { errorBox.style.display = 'none'; }
 
-    function clearError() {
-      errorBox.style.display = 'none';
-    }
-
-    async function generateKey() {
+    async function generateRandom() {
       clearError();
       try {
-        const data = await callWorker();
+        const data = await callWorker('generate');
         keyInput.value = data.key;
         displayKeyData(data);
-      } catch (err) {
-        showError(err.message);
-      }
+      } catch (err) { showError(err.message); }
+    }
+
+    async function generateCustom() {
+      clearError();
+      const custom = keyInput.value.trim();
+      if (!custom) { showError('Please enter a custom id (e.g. myapp)'); return; }
+      try {
+        const data = await callWorker('generateCustom', custom);
+        keyInput.value = data.key;
+        displayKeyData(data);
+      } catch (err) { showError(err.message); }
     }
 
     async function checkKey() {
-      const key = keyInput.value.trim();
-      if (!key) {
-        showError('Please enter a key first.');
-        return;
-      }
       clearError();
+      const key = keyInput.value.trim();
+      if (!key) { showError('Please enter a key to check'); return; }
       try {
-        const data = await callWorker(key);
+        const data = await callWorker('check', key);
         displayKeyData(data);
       } catch (err) {
         showError(err.message);
@@ -297,7 +207,8 @@
       }
     }
 
-    generateBtn.addEventListener('click', generateKey);
+    generateBtn.addEventListener('click', generateRandom);
+    generateCustomBtn.addEventListener('click', generateCustom);
     checkBtn.addEventListener('click', checkKey);
     keyInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') checkKey();
