@@ -22,7 +22,7 @@
     button {
       background: #2d3748; border: none; color: white; padding: 12px 24px;
       border-radius: 40px; font-size: 1rem; font-weight: 500; cursor: pointer;
-      transition: 0.2s; flex: 1 1 auto; min-width: 120px; border: 1px solid #3f4a5e;
+      transition: 0.2s; flex: 1 1 auto; min-width: 100px; border: 1px solid #3f4a5e;
     }
     button:hover { background: #3f4a60; border-color: #5a6a82; }
     button.primary { background: #4f7cf7; border-color: #4f7cf7; }
@@ -76,7 +76,7 @@
       <button id="checkBtn">Check Key</button>
     </div>
 
-    <input type="text" id="keyInput" placeholder="Enter a key or custom id (e.g. myapp123)" value="" />
+    <input type="text" id="keyInput" placeholder="Enter a custom id or full key to check" value="" />
 
     <div id="errorBox" class="error"></div>
 
@@ -118,7 +118,7 @@
     async function callWorker(mode, value = null) {
       let url = WORKER_URL;
       if (mode === 'generate') {
-        // no parameters -> random UUID
+        // no parameters
       } else if (mode === 'generateCustom') {
         if (!value) throw new Error('Please enter a custom id');
         url += `?id=${encodeURIComponent(value)}`;
@@ -128,9 +128,7 @@
       }
       const res = await fetch(url);
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Request failed');
-      }
+      if (!res.ok) throw new Error(data.error || 'Request failed');
       return data;
     }
 
