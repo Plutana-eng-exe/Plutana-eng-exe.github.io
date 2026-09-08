@@ -1,0 +1,141 @@
+-- lz4 for Septer-Executor
+-- Pure-Lua LZ4 block compression/decompression
+
+local lz4 = {}
+
+function lz4.compress(input)
+	local output = {}
+	local i = 1
+	local len = #input
+	local literals = {}
+
+	while i <= len do
+		local match_offset, match_len = 0, 0
+
+		-- Simple hash-based match finding (limited window for pure Lua speed)
+		local search_start = math.max(1, i - 65535)
+		for j = search_start, i - 1 do
+			local ml = 0
+			while i + ml <= len and input:byte(i + ml) == input:byte(j + ml) do
+				ml = ml + 1
+				if ml >= 255 + 4 then break end
+			end
+			if ml >= 4 and ml > match_len then
+				match_len = ml
+				match_offset = i - j
+			end
+		end
+
+		if match_len >= 4 then
+			-- Emit token + literals + match
+			local lit_len = #literals
+			local token_lit = math.min(lit_len, 15)
+			local token_mat = math.min(match_len - 4, 15)
+			table.insert(output, string.char(token_lit * 16 + token_mat))
+
+			if lit_len >= 15 then
+				local extra = lit_len - 15
+				while extra >= 255 do
+					table.insert(output, string.char(255))
+					extra = extra - 255
+				end
+				table.insert(output, string.char(extra))
+			end
+
+			table.insert(output, table.concat(literals))
+			literals = {}
+
+			-- Offset (little-endian 2 bytes)
+			table.insert(output, string.char(match_offset % 256, math.floor(match_offset / 256)))
+
+			if match_len - 4 >= 15 then
+				local extra = match_len - 4 - 15
+				while extra >= 255 do
+					table.insert(output, string.char(255))
+					extra = extra - 255
+				end
+				table.insert(output, string.char(extra))
+			end
+
+			i = i + match_len
+		else
+			table.insert(literals, string.char(input:byte(i)))
+			i = i + 1
+		end
+	end
+
+	-- Flush remaining literals
+	if #literals > 0 then
+		local lit_len = #literals
+		local token_lit = math.min(lit_len, 15)
+		table.insert(output, string.char(token_lit * 16))
+		if lit_len >= 15 then
+			local extra = lit_len - 15
+			while extra >= 255 do
+				table.insert(output, string.char(255))
+				extra = extra - 255
+			end
+			table.insert(output, string.char(extra))
+		end
+		table.insert(output, table.concat(literals))
+	end
+
+	return table.concat(output)
+end
+
+function lz4.decompress(input, output_size)
+	local output = {}
+	local i = 1
+	local len = #input
+
+	while i <= len do
+		local token = input:byte(i)
+		i = i + 1
+
+		-- Literal length
+		local lit_len = math.floor(token / 16)
+		if lit_len == 15 then
+			repeat
+				local extra = input:byte(i)
+				i = i + 1
+				lit_len = lit_len + extra
+			until extra ~= 255
+		end
+
+		-- Copy literals
+		if lit_len > 0 then
+			table.insert(output, input:sub(i, i + lit_len - 1))
+			i = i + lit_len
+		end
+
+		if i > len then break end
+
+		-- Match offset (little-endian)
+		local offset = input:byte(i) + input:byte(i + 1) * 256
+		i = i + 2
+
+		-- Match length
+		local mat_len = (token % 16) + 4
+		if (token % 16) == 15 then
+			repeat
+				local extra = input:byte(i)
+				i = i + 1
+				mat_len = mat_len + extra
+			until extra ~= 255
+		end
+
+		-- Copy match from already-decoded output
+		local out_str = table.concat(output)
+		local match_start = #out_str - offset + 1
+		local match = ""
+		for k = 0, mat_len - 1 do
+			local pos = match_start + (k % offset)
+			match = match .. out_str:sub(pos, pos)
+		end
+		table.insert(output, match)
+	end
+
+	return table.concat(output)
+end
+
+return lz4

@@ -1,0 +1,68 @@
+-- DrawingLib for Septer-Executor
+-- Wraps Roblox Drawing API into a UE-compatible interface
+
+local DrawingLib = {}
+
+-- ── Drawing object wrapper ─────────────────────────────────────────────────
+
+local DrawingMeta = {}
+DrawingMeta.__index = DrawingMeta
+
+local function newDrawing(class)
+	local obj = Drawing.new(class)
+	return setmetatable({ _obj = obj }, DrawingMeta)
+end
+
+function DrawingMeta:__index(k)
+	if k == "Remove" or k == "Destroy" then
+		return function(self) self._obj:Remove() end
+	end
+	return self._obj[k]
+end
+
+function DrawingMeta:__newindex(k, v)
+	self._obj[k] = v
+end
+
+-- ── Drawing constructor ────────────────────────────────────────────────────
+
+local Drawing2 = {}
+Drawing2.__index = Drawing2
+
+setmetatable(Drawing2, {
+	__call = function(_, class)
+		return newDrawing(class)
+	end
+})
+
+function Drawing2.new(class)
+	return newDrawing(class)
+end
+
+-- ── Helper functions ───────────────────────────────────────────────────────
+
+local functions = {}
+
+function functions.cleardrawcache()
+	-- no-op; Drawing objects are GC'd normally in Roblox
+end
+
+function functions.getrenderproperty(obj, prop)
+	local raw = rawtype and rawtype(obj) == "userdata" and obj or (obj and obj._obj)
+	if raw then return raw[prop] end
+end
+
+function functions.setrenderproperty(obj, prop, value)
+	local raw = rawtype and rawtype(obj) == "userdata" and obj or (obj and obj._obj)
+	if raw then raw[prop] = value end
+end
+
+function functions.isrenderobj(obj)
+	if rawtype and rawtype(obj) == "userdata" then return true end
+	return type(obj) == "table" and obj._obj ~= nil
+end
+
+DrawingLib.Drawing = Drawing2
+DrawingLib.functions = functions
+
+return DrawingLib

@@ -1,0 +1,156 @@
+-- HashLib for Septer-Executor
+-- Provides common hashing algorithms as pure Lua
+-- Source: https://github.com/Egor-Skriptunoff/pure_lua_SHA (MIT)
+
+local HashLib = {}
+
+local function bxor(a,b)
+	local r,m,s=0,2^31
+	repeat
+		s,a,b=a+b+m,a%m,b%m
+		r,m=r+m*s%2,m/2
+	until m<1
+	return r
+end
+
+local function band(a,b)
+	local r,m=0,2^31
+	repeat
+		local s=a+b
+		r,a,b=r+m*(2>(s-s%1)%2 and 1 or 0),a%m,b%m
+		m=m/2
+	until m<1
+	return r
+end
+
+local function bor(a,b)
+	local r,m=0,2^31
+	repeat
+		local s=a+b
+		r,a,b=r+m*((s-s%1)%2>0 and 1 or 0),a%m,b%m
+		m=m/2
+	until m<1
+	return r
+end
+
+local function rshift(a,n) return math.floor(a/2^n) end
+local function lshift(a,n) return (a*2^n)%(2^32) end
+local function rot32(a,n) return bor(lshift(a,n),rshift(a,32-n)) end
+
+-- SHA-256
+local function preprocess(data)
+	local len=#data
+	data=data.."\128"
+	while #data%64~=56 do data=data.."\0" end
+	local l=len*8
+	for i=7,0,-1 do
+		data=data..string.char(math.floor(l/256^i)%256)
+	end
+	return data
+end
+
+local H0={
+	0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
+	0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
+}
+local K={
+	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+	0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+	0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+	0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+	0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+	0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+	0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+	0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+}
+
+local function uint32(n) return n%(2^32) end
+
+local function sha256block(h,block)
+	local w={}
+	for i=1,16 do
+		w[i]=0
+		for j=1,4 do w[i]=w[i]*256+block:byte((i-1)*4+j) end
+	end
+	for i=17,64 do
+		local s0=bxor(bxor(rot32(w[i-15],7),rot32(w[i-15],18)),rshift(w[i-15],3))
+		local s1=bxor(bxor(rot32(w[i-2],17),rot32(w[i-2],19)),rshift(w[i-2],10))
+		w[i]=uint32(w[i-16]+s0+w[i-7]+s1)
+	end
+	local a,b,c,d,e,f,g,hh=table.unpack(h)
+	for i=1,64 do
+		local S1=bxor(bxor(rot32(e,6),rot32(e,11)),rot32(e,25))
+		local ch=bxor(band(e,f),band(uint32(~e),g))
+		local temp1=uint32(hh+S1+ch+K[i]+w[i])
+		local S0=bxor(bxor(rot32(a,2),rot32(a,13)),rot32(a,22))
+		local maj=bxor(bxor(band(a,b),band(a,c)),band(b,c))
+		local temp2=uint32(S0+maj)
+		hh=g g=f f=e e=uint32(d+temp1)
+		d=c c=b b=a a=uint32(temp1+temp2)
+	end
+	return {uint32(h[1]+a),uint32(h[2]+b),uint32(h[3]+c),uint32(h[4]+d),
+	        uint32(h[5]+e),uint32(h[6]+f),uint32(h[7]+g),uint32(h[8]+hh)}
+end
+
+function HashLib.sha256(data)
+	data=preprocess(data)
+	local h=table.clone and table.clone(H0) or {table.unpack(H0)}
+	for i=1,#data,64 do
+		h=sha256block(h,data:sub(i,i+63))
+	end
+	local out=""
+	for _,v in ipairs(h) do
+		out=out..string.format("%08x",v)
+	end
+	return out
+end
+
+-- MD5
+local function md5(msg)
+	local function F(X,Y,Z) return bor(band(X,Y),band(uint32(~X),Z)) end
+	local function G(X,Y,Z) return bor(band(X,Z),band(Y,uint32(~Z))) end
+	local function H(X,Y,Z) return bxor(bxor(X,Y),Z) end
+	local function I(X,Y,Z) return bxor(Y,bor(X,uint32(~Z))) end
+	local s={7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+	         5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+	         4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+	         6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21}
+	local T={}
+	for i=1,64 do T[i]=math.floor(math.abs(math.sin(i))*2^32)%(2^32) end
+	local len=#msg
+	msg=msg.."\128"
+	while #msg%64~=56 do msg=msg.."\0" end
+	local l=len*8
+	for i=0,7 do msg=msg..string.char(l%(256)%256) l=math.floor(l/256) end
+	local a0,b0,c0,d0=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+	for i=1,#msg,64 do
+		local M={}
+		for j=0,15 do
+			M[j]=0
+			for k=3,0,-1 do M[j]=M[j]*256+msg:byte(i+j*4+k) end
+		end
+		local A,B,C,D=a0,b0,c0,d0
+		for j=0,63 do
+			local FF,g
+			if j<16 then FF=F(B,C,D) g=j
+			elseif j<32 then FF=G(B,C,D) g=(5*j+1)%16
+			elseif j<48 then FF=H(B,C,D) g=(3*j+5)%16
+			else FF=I(B,C,D) g=(7*j)%16 end
+			local tmp=D D=C C=B
+			B=uint32(B+rot32(uint32(A+FF+T[j+1]+M[g]),s[j+1]))
+			A=tmp
+		end
+		a0=uint32(a0+A) b0=uint32(b0+B) c0=uint32(c0+C) d0=uint32(d0+D)
+	end
+	local function le32(n)
+		return string.char(n%256,math.floor(n/256)%256,math.floor(n/65536)%256,math.floor(n/16777216)%256)
+	end
+	return (le32(a0)..le32(b0)..le32(c0)..le32(d0)):gsub(".",function(c) return string.format("%02x",c:byte()) end)
+end
+
+function HashLib.md5(s) return md5(s) end
+function HashLib["sha-256"](s) return HashLib.sha256(s) end
+HashLib.SHA256=HashLib.sha256
+HashLib.MD5=HashLib.md5
+
+return HashLib
