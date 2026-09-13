@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Screen Scope Drawer</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background-color:#0b0d12;
+    background-image:
+      linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size:40px 40px;
+    color:#e7ecf3;
+    font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    overflow:hidden;overscroll-behavior:none;
+    -webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  /* ---------- drawing surface ---------- */
+  #stage{position:fixed;inset:0;touch-action:none;cursor:crosshair}
+  #main,#preview{position:absolute;left:0;top:0;display:block}
+  #preview{pointer-events:none}
+
+  /* ---------- ui shell ---------- */
+  .ui{position:fixed;z-index:10}
+  body.noUI .ui:not(.restore){display:none}
+  .restore{display:none}
+  body.noUI .restore{display:block}
+
+  .bar{
+    top:14px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
+    padding:8px 10px;border-radius:14px;max-width:calc(100vw - 28px);
+    background:rgba(18,21,29,.82);
+    border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter:blur(14px) saturate(140%);
+    -webkit-backdrop-filter:blur(14px) saturate(140%);
+  }
+  .grp{display:flex;align-items:center;gap:6px}
+  .sep{width:1px;height:22px;background:rgba(255,255,255,.10)}
+
+  button{
+    font:inherit;color:#98a2b6;background:transparent;border:1px solid transparent;
+    padding:6px 10px;border-radius:9px;cursor:pointer;
+    transition:background .15s,color .15s,border-color .15s,filter .15s;
+    white-space:nowrap;
+  }
+  button:hover{color:#fff;background:rgba(255,255,255,.07)}
+  button.on{color:#fff;background:rgba(255,77,109,.16);border-color:rgba(255,77,109,.45)}
+  button.primary{
+    color:#fff;border-color:rgba(255,255,255,.16);
+    background:linear-gradient(180deg,#ff5c7a,#e63e5e);
+  }
+  button.primary:hover{filter:brightness(1.08)}
+
+  .rng{display:flex;align-items:center;gap:8px;color:#98a2b6;padding:0 4px}
+  .rng input[type=range]{width:110px;accent-color:#ff4d6d;cursor:pointer}
+  .rng b{color:#fff;min-width:24px;text-align:right;font-variant-numeric:tabular-nums}
+
+  input[type=color]{
+    width:34px;height:28px;padding:0;cursor:pointer;background:transparent;
+    border:1px solid rgba(255,255,255,.14);border-radius:8px;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+  input[type=color]::-webkit-color-swatch{border:none;border-radius:6px}
+
+  /* ---------- hud ---------- */
+  .hud{
+    left:14px;bottom:14px;display:flex;gap:16px;align-items:center;
+    padding:7px 12px;border-radius:10px;color:#8b94a7;
+    font-variant-numeric:tabular-nums;
+    background:rgba(18,21,29,.75);
+    border:1px solid rgba(255,255,255,.08);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  }
+  .hud b{color:#fff;font-weight:600}
+
+  /* ---------- json panel ---------- */
+  .jsonp{
+    right:14px;bottom:14px;width:min(360px,calc(100vw - 28px));
+    background:rgba(18,21,29,.82);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:14px;overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  }
+  .jhead{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px 10px;color:#98a2b6;border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .jhead div{display:flex;gap:4px}
+  .jhead button{padding:4px 8px;font-size:12px}
+  .jsonp pre{
+    margin:0;padding:10px;max-height:34vh;overflow:auto;
+    font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:#9fb0c9;white-space:pre;tab-size:2;
+  }
+  .jsonp.collapsed pre{display:none}
+  .jsonp pre::-webkit-scrollbar{width:8px;height:8px}
+  .jsonp pre::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:8px}
+
+  .restore{
+    right:14px;top:14px;padding:8px 12px;border-radius:10px;
+    background:rgba(18,21,29,.85);border:1px solid rgba(255,255,255,.12);color:#e7ecf3;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ DRAWING SURFACE ============ -->
+<div id="stage">
+  <canvas id="main"></canvas>
+  <canvas id="preview"></canvas>
+</div>
+
+<!-- ============ TOOLBAR ============ -->
+<div class="ui bar" id="bar">
+  <div class="grp">
+    <button class="tool on" data-tool="brush">Brush</button>
+    <button class="tool" data-tool="pen">Pen</button>
+    <button class="tool" data-tool="line">Line</button>
+    <button class="tool" data-tool="rect">Rect</button>
+    <button class="tool" data-tool="ellipse">Ellipse</button>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="grp">
+    <label class="rng">Size
+      <input id="size" type="range" min="1" max="80" step="1" value="8" />
+      <b id="sizeVal">8</b>
+    </label>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="grp">
+    <input id="color" type="color" value="#ff4d6d" title="Stroke color" />
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="grp">
+    <button id="undo" title="Ctrl+Z">Undo</button>
+    <button id="clear">Clear</button>
+    <button id="save" class="primary">↓ Download JSON</button>
+    <button id="hide" title="H">Hide UI</button>
+  </div>
+</div>
+
+<!-- ============ HUD ============ -->
+<div class="ui hud" id="hud">
+  <span><b id="count">0</b> shapes</span>
+  <span id="cursor">x 0 · y 0</span>
+</div>
+
+<!-- ============ JSON PANEL ============ -->
+<div class="ui jsonp" id="jsonp">
+  <div class="jhead">
+    <span>scope.json</span>
+    <div>
+      <button id="copy">Copy</button>
+      <button id="collapse">–</button>
+    </div>
+  </div>
+  <pre id="jsonOut">{}</pre>
+</div>
+
+<button class="ui restore" id="restore">Show UI (H)</button>
+
+<script>
+(() => {
+  "use strict";
+
+  const TAU = Math.PI * 2;
+  const r2 = v => Math.round(v * 100) / 100;
+
+  const stage   = document.getElementById('stage');
+  const mainCv  = document.getElementById('main');
+  const prevCv  = document.getElementById('preview');
+  const mainCtx = mainCv.getContext('2d');
+  const prevCtx = prevCv.getContext('2d');
+
+  const jsonOut  = document.getElementById('jsonOut');
+  const countEl  = document.getElementById('count');
+  const cursorEl = document.getElementById('cursor');
+  const sizeInput = document.getElementById('size');
+  const sizeVal   = document.getElementById('sizeVal');
+  const colorInput = document.getElementById('color');
+
+  /* ----------------------------------------------------------
+     STATE
+  ---------------------------------------------------------- */
+  const state = {
+    tool: 'brush',
+    size: 8,
+    color: '#ff4d6d',
+    shapes: [],
+    draft: null,
+    drawing: false,
+    last: null,
+    nextId: 1
+  };
+
+  let W = 0, H = 0, DPR = 1;
+
+  /* ----------------------------------------------------------
+     CANVAS SIZING
+  ---------------------------------------------------------- */
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+    for (const [cv, ctx] of [[mainCv, mainCtx], [prevCv, prevCtx]]) {
+      cv.width  = Math.round(W * DPR);
+      cv.height = Math.round(H * DPR);
+      cv.style.width  = W + 'px';
+      cv.style.height = H + 'px';
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+
+    renderAll();
+    drawPreview();
+  }
+
+  /* ----------------------------------------------------------
+     GEOMETRY HELPERS
+  ---------------------------------------------------------- */
+  function tracePath(ctx, pts) {
+    ctx.beginPath();
+    if (pts.length < 3) {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      if (pts.length > 1) ctx.lineTo(pts[1].x, pts[1].y);
+      return;
+    }
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2;
+      const my = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    }
+    const n = pts.length;
+    ctx.quadraticCurveTo(pts[n - 2].x, pts[n - 2].y, pts[n - 1].x, pts[n - 1].y);
+  }
+
+  /* Ramer–Douglas–Peucker: keeps exported JSON small & clean */
+  function simplify(points, eps) {
+    const n = points.length;
+    if (n < 3) return points.slice();
+
+    const keep = new Array(n).fill(false);
+    keep[0] = keep[n - 1] = true;
+    const stack = [[0, n - 1]];
+
+    while (stack.length) {
+      const [s, e] = stack.pop();
+      const a = points[s], b = points[e];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1e-6;
+
+      let maxD = -1, idx = -1;
+      for (let i = s + 1; i < e; i++) {
+        const d = Math.abs((points[i].x - a.x) * dy - (points[i].y - a.y) * dx) / len;
+        if (d > maxD) { maxD = d; idx = i; }
+      }
+      if (maxD > eps && idx > 0) {
+        keep[idx] = true;
+        stack.push([s, idx], [idx, e]);
+      }
+    }
+    return points.filter((_, i) => keep[i]);
+  }
+
+  /* ----------------------------------------------------------
+     RENDERING
+  ---------------------------------------------------------- */
+  function drawShape(ctx, s) {
+    if (!s || !s.points || !s.points.length) return;
+    const pts = s.points;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = s.color;
+    ctx.fillStyle = s.color;
+
+    if (s.type === 'pen' || s.type === 'brush') {
+      if (pts.length === 1) {
+        ctx.beginPath();
+        ctx.arc(pts[0].x, pts[0].y, Math.max(0.5, s.size / 2), 0, TAU);
+        ctx.fill();
+      } else if (s.type === 'pen') {
+        ctx.lineWidth = s.size;
+        tracePath(ctx, pts);
+        ctx.stroke();
+      } else {
+        /* brush = layered soft stroke (halo → core) */
+        const passes = [[1, 0.16], [0.72, 0.28], [0.46, 0.9]];
+        for (const [w, a] of passes) {
+          ctx.globalAlpha = a;
+          ctx.lineWidth = Math.max(0.5, s.size * w);
+          tracePath(ctx, pts);
+          ctx.stroke();
+        }
+      }
+    } else if (s.type === 'line') {
+      ctx.lineWidth = s.size;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      ctx.lineTo(pts[1].x, pts[1].y);
+      ctx.stroke();
+    } else if (s.type === 'rect') {
+      ctx.lineWidth = s.size;
+      const x = Math.min(pts[0].x, pts[1].x);
+      const y = Math.min(pts[0].y, pts[1].y);
+      const w = Math.abs(pts[1].x - pts[0].x);
+      const h = Math.abs(pts[1].y - pts[0].y);
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, w, h, Math.min(10, w / 2, h / 2));
+      else ctx.rect(x, y, w, h);
+      ctx.stroke();
+    } else if (s.type === 'ellipse') {
+      ctx.lineWidth = s.size;
+      const cx = (pts[0].x + pts[1].x) / 2;
+      const cy = (pts[0].y + pts[1].y) / 2;
+      const rx = Math.abs(pts[1].x - pts[0].x) / 2;
+      const ry = Math.abs(pts[1].y - pts[0].y) / 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, Math.max(rx, 0.1), Math.max(ry, 0.1), 0, 0, TAU);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function renderAll() {
+    mainCtx.clearRect(0, 0, W, H);
+    for (const s of state.shapes) drawShape(mainCtx, s);
+  }
+
+  /* preview canvas = the "temp" layer */
+  let previewQueued = false;
+  function schedulePreview() {
+    if (previewQueued) return;
+    previewQueued = true;
+    requestAnimationFrame(() => {
+      previewQueued = false;
+      drawPreview();
+    });
+  }
+
+  function drawPreview() {
+    prevCtx.clearRect(0, 0, W, H);
+    if (state.draft) drawShape(prevCtx, state.draft);
+  }
+
+  /* ----------------------------------------------------------
+     POINTER INPUT
+  ---------------------------------------------------------- */
+  const pos = e => ({ x: e.clientX, y: e.clientY });
+
+  function onDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest && e.target.closest('.ui')) return;
+
+    try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+
+    const p = pos(e);
+    const t = state.tool;
+
+    state.drawing = true;
+    state.last = p;
+    state.draft = {
+      type: t,
+      color: state.color,
+      size: state.size,
+      points: (t === 'pen' || t === 'brush') ? [p] : [p, { x: p.x, y: p.y }]
+    };
+
+    drawPreview();
+  }
+
+  function onMove(e) {
+    const p = pos(e);
+    cursorEl.textContent = `x ${Math.round(p.x)} · y ${Math.round(p.y)}`;
+
+    if (!state.drawing || !state.draft) return;
+    const d = state.draft;
+
+    if (d.type === 'pen' || d.type === 'brush') {
+      const dx = p.x - state.last.x;
+      const dy = p.y - state.last.y;
+      if (dx * dx + dy * dy < 4) return;   // ~2px filter keeps JSON light
+      d.points.push(p);
+      state.last = p;
+    } else {
+      d.points[1] = p;
+    }
+
+    schedulePreview();
+  }
+
+  function onUp() {
+    if (!state.drawing) return;
+    state.drawing = false;
+
+    const d = state.draft;
+    state.draft = null;
+
+    if (!d) { drawPreview(); return; }
+
+    if (d.type === 'pen' || d.type === 'brush') {
+      if (d.points.length > 2) d.points = simplify(d.points, 0.7);
+    } else {
+      const [a, b] = d.points;
+      if (Math.hypot(b.x - a.x, b.y - a.y) < 2) { drawPreview(); return; }
+    }
+
+    d.id = state.nextId++;
+    state.shapes.push(d);
+
+    renderAll();
+    drawPreview();
+    updateJSON();
+  }
+
+  stage.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove, { passive: true });
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+  window.addEventListener('resize', resize);
+  window.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* ----------------------------------------------------------
+     JSON EXPORT
+  ---------------------------------------------------------- */
+  function shapeBounds(s) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of s.points) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const pad = s.size / 2;
+    return {
+      x: r2(minX - pad),
+      y: r2(minY - pad),
+      width: r2(maxX - minX + pad * 2),
+      height: r2(maxY - minY + pad * 2)
+    };
+  }
+
+  function buildJSON() {
+    return {
+      version: 1,
+      generated: new Date().toISOString(),
+      units: 'css-pixels',
+      viewport: {
+        width: W,
+        height: H,
+        devicePixelRatio: DPR
+      },
+      screen: {
+        offsetX: window.screenX || 0,
+        offsetY: window.screenY || 0,
+        width: (window.screen && screen.width) || 0,
+        height: (window.screen && screen.height) || 0
+      },
+      shapeCount: state.shapes.length,
+      shapes: state.shapes.map(s => ({
+        id: s.id,
+        type: s.type,
+        stroke: s.color,
+        size: s.size,
+        points: s.points.map(p => [r2(p.x), r2(p.y)]),
+        bounds: shapeBounds(s)
+      }))
+    };
+  }
+
+  function updateJSON() {
+    countEl.textContent = state.shapes.length;
+    jsonOut.textContent = JSON.stringify(buildJSON(), null, 2);
+  }
+
+  function downloadJSON() {
+    const data = JSON.stringify(buildJSON(), null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = `screen-scope-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  /* ----------------------------------------------------------
+     UI WIRING
+  ---------------------------------------------------------- */
+  function setTool(t) {
+    state.tool = t;
+    document.querySelectorAll('.tool').forEach(b => {
+      b.classList.toggle('on', b.dataset.tool === t);
+    });
+  }
+
+  function setSize(v) {
+    state.size = Math.max(1, Math.min(80, Math.round(v)));
+    sizeInput.value = state.size;
+    sizeVal.textContent = state.size;
+  }
+
+  document.querySelectorAll('.tool').forEach(btn => {
+    btn.addEventListener('click', () => setTool(btn.dataset.tool));
+  });
+
+  sizeInput.addEventListener('input', () => setSize(+sizeInput.value));
+  colorInput.addEventListener('input', () => { state.color = colorInput.value; });
+
+  document.getElementById('undo').addEventListener('click', () => {
+    state.shapes.pop();
+    renderAll();
+    drawPreview();
+    updateJSON();
+  });
+
+  document.getElementById('clear').addEventListener('click', () => {
+    if (!state.shapes.length) return;
+    if (!confirm('Clear all shapes?')) return;
+    state.shapes = [];
+    state.nextId = 1;
+    renderAll();
+    drawPreview();
+    updateJSON();
+  });
+
+  document.getElementById('save').addEventListener('click', downloadJSON);
+
+  document.getElementById('copy').addEventListener('click', async (e) => {
+    const txt = JSON.stringify(buildJSON(), null, 2);
+    try {
+      await navigator.clipboard.writeText(txt);
+      e.target.textContent = 'Copied!';
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      e.target.textContent = 'Copied!';
+    }
+    setTimeout(() => { e.target.textContent = 'Copy'; }, 1200);
+  });
+
+  document.getElementById('collapse').addEventListener('click', (e) => {
+    const p = document.getElementById('jsonp');
+    p.classList.toggle('collapsed');
+    e.target.textContent = p.classList.contains('collapsed') ? '+' : '–';
+  });
+
+  document.getElementById('hide').addEventListener('click', () => {
+    document.body.classList.add('noUI');
+  });
+  document.getElementById('restore').addEventListener('click', () => {
+    document.body.classList.remove('noUI');
+  });
+
+  /* shortcuts */
+  window.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;
+
+    const k = e.key.toLowerCase();
+
+    if ((e.ctrlKey || e.metaKey) && k === 'z') {
+      e.preventDefault();
+      state.shapes.pop();
+      renderAll(); drawPreview(); updateJSON();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    if (k === 'b') setTool('brush');
+    else if (k === 'p') setTool('pen');
+    else if (k === 'l') setTool('line');
+    else if (k === 'r') setTool('rect');
+    else if (k === 'e') setTool('ellipse');
+    else if (k === 'h') document.body.classList.toggle('noUI');
+    else if (k === '[') setSize(state.size - 2);
+    else if (k === ']') setSize(state.size + 2);
+    else if (k === 'delete') {
+      state.shapes = []; state.nextId = 1;
+      renderAll(); drawPreview(); updateJSON();
+    }
+  });
+
+  /* ----------------------------------------------------------
+     BOOT
+  ---------------------------------------------------------- */
+  setTool('brush');
+  setSize(8);
+  state.color = colorInput.value;
+  resize();
+  updateJSON();
+})();
+</script>
+</body>
+</html>
